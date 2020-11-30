@@ -1,0 +1,935 @@
+---
+title: 'Data Structures Analysis - Without Code'
+output:
+  html_document:
+    df_print: paged
+    header-includes: \usepackage{color}
+    toc: yes
+  pdf_document:
+    toc: yes
+  html_notebook:
+    theme: united
+    toc: yes
+---
+
+# 1.0 Introduction and Background
+
+During the Fall of 2018, a Google questionare was distributed via the RPI subreddit and various facebook groups to survey students that have completed the data structures course at RPI. The rows in the dataset represent individual students, and the columns represent attributes of that student.
+
+The full dataset, metadata, and documentation is not available for public access.
+
+This report was prepared by: 
+
+* James Hicks
+
+This report was finalized on 11/19/2018.
+This report is generated from an R Markdown file that includes all the R code necessary to produce the results described and embedded in the report.  
+
+This document is subject to revision as more visualizations can be concieved. The following sections are up to date but may change in later editions of this notebook.
+
+Executing of this R notebook requires some subset of the following packages:
+
+* `ggplot2`
+* `e1071`
+* `readr`
+* 'randomForest'
+* 'car'
+* 'caret'
+* 'class'
+* 'MASS'
+* 'corrplot'
+* 'plyr'
+* 'dplyr'
+
+These will be installed and loaded as necessary (code suppressed). The chunks of R code used to generate these results are also suppresed. If you are interested in the script, please contact James Hicks (Hicksj2@rpi.edu)
+
+```{r,include=FALSE}
+#library(readr)
+library(corrplot)
+#library(functional)
+#require(rpart)
+library(randomForest)
+library(e1071)
+require(IDPmisc)
+library(caret)
+library(ggplot2)
+require(MASS)
+require(stats)
+library(class)
+library(corrplot)
+library(plotly)
+library(plyr)
+library(dplyr)
+```
+
+```{r,include=FALSE,eval=FALSE}
+if (!require("devtools")) install.packages("devtools")
+devtools::install_github("ropensci/plotly")
+```
+
+
+# 2.0 Loading in the Data
+
+The data was read in and linearly transformed as outlined in the DataScience_DataStructures.Rmd file. As such, the code is supressed, but executed.
+```{r,include=FALSE}
+# reading in
+data<-read.csv("C:/Users/JHicks/Desktop/DataScience/data_structures.csv")
+colnames(data)<-c("timestamp","score","class_year","semester","drop_this","lecturer","ap_bool","ap_grade","cs1_grade_rpi","ds_grade","gpa","major","hrs_test","hrs_hw","dropped","ds_multiple","employed","employed_field","workload","RCS","age","ds_year","cs1_atRpi","cs1_grade_other","c_lines","prompt_lines","lectures_week")
+dropnames<- c("score","drop_this","timestamp")
+
+data$ds_grade<-as.character(data$ds_grade)
+data<-data[,!(names(data) %in% dropnames)]
+#fix the abnormalities
+data[39,"lecturer"]<-"Cutler/Thompson"#long string that should haeve been this value
+data <- data[-c(51), ]#this person entered "current" as their ds_grade. they should not have taken the survey
+data$ds_grade<-as.factor(data$ds_grade)
+temp<-data$class_year
+reassign<-data$gpa
+for( i in 1:length(temp))
+{
+  reassign[i]<-as.numeric(i)
+  
+}
+data["survey_id"]<-reassign
+
+temp<-as.character(data$lecturer)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(substring(temp[i],1,1)=="h" || substring(temp[i],1,1)=="H")
+    {
+      reassign[i]<-"Holtzbauer"
+    }
+  
+}
+data$class_year<-as.factor(data$class_year)
+data$lecturer<-as.factor(reassign)
+
+temp<-as.character(data$ap_bool)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="No")
+    {
+      reassign[i]<-FALSE
+    }
+  else if (temp[i]=="Yes")
+    {
+      reassign[i]<-TRUE
+    }
+  
+}
+
+data$ap_bool<-as.logical(reassign)
+data$ap_grade[is.na(data$ap_grade)] <- 0#NA is more correct, but this makes calculations easier
+temp<-as.character(data$cs1_grade_rpi)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="A-")
+    {
+      reassign[i]<-"A"
+    }
+  else if (temp[i]=="B-"||temp[i]=="B+")
+    {
+      reassign[i]<-"B"
+  }
+  else if (temp[i]=="C-"||temp[i]=="C+")
+    {
+      reassign[i]<-"C"
+  }
+  else if (temp[i]=="D-"||temp[i]=="D+")
+    {
+      reassign[i]<-"D"
+  }
+  else if (temp[i]=="Pass")
+    {
+      reassign[i]<-"P"
+  }
+  else if (temp[i]=="Withdrawn")
+    {
+      reassign[i]<-"W"
+  }
+  else if (temp[i]=="Not Applicable")
+    {
+      reassign[i]<-"None"
+    }
+  
+}
+data["cs1_grade_rpi_letter"]<-as.factor(reassign)
+
+temp<-as.character(data$ds_grade)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="A-")
+    {
+      reassign[i]<-"A"
+    }
+  else if (temp[i]=="B-"||temp[i]=="B+")
+    {
+      reassign[i]<-"B"
+  }
+  else if (temp[i]=="C-"||temp[i]=="C+")
+    {
+      reassign[i]<-"C"
+  }
+  else if (temp[i]=="D-"||temp[i]=="D+")
+    {
+      reassign[i]<-"D"
+  }
+  else if (temp[i]=="Pass")
+    {
+      reassign[i]<-"P"
+  }
+  else if (temp[i]=="Withdrawn")
+    {
+      reassign[i]<-"W"
+  }
+  else if (temp[i]=="Not Applicable")
+    {
+      reassign[i]<-"None"
+    }
+  
+}
+data["ds_grade_letter"]<-as.factor(reassign)
+
+temp<-as.character(data$dropped)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="No")
+    {
+      reassign[i]<-FALSE
+    }
+  else if (temp[i]=="Yes")
+    {
+      reassign[i]<-TRUE
+    }
+  
+}
+
+data$dropped<-as.logical(reassign)
+
+temp<-as.character(data$ds_multiple)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="No")
+    {
+      reassign[i]<-FALSE
+    }
+  else if (temp[i]=="Yes")
+    {
+      reassign[i]<-TRUE
+    }
+  
+}
+
+data$ds_multiple<-as.logical(reassign)
+
+
+temp<-as.character(data$employed)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="No")
+    {
+      reassign[i]<-FALSE
+    }
+  else if (temp[i]=="Yes")
+    {
+      reassign[i]<-TRUE
+    }
+  
+}
+
+data$employed<-as.logical(reassign)
+
+temp<-as.character(data$employed_field)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="No")
+    {
+      reassign[i]<-FALSE
+    }
+  else if (temp[i]=="Yes")
+    {
+      reassign[i]<-TRUE
+    }
+  
+}
+
+data$employed_field<-as.logical(reassign)
+data$RCS<-as.character(data$RCS)
+
+temp<-as.character(data$cs1_atRpi)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="No")
+    {
+      reassign[i]<-FALSE
+    }
+  else if (temp[i]=="Yes")
+    {
+      reassign[i]<-TRUE
+    }
+  
+}
+
+data$cs1_atRpi<-as.logical(reassign)
+
+temp<-as.character(data$cs1_grade_other)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="A-")
+    {
+      reassign[i]<-"A"
+    }
+  else if (temp[i]=="B-"||temp[i]=="B+")
+    {
+      reassign[i]<-"B"
+  }
+  else if (temp[i]=="C-"||temp[i]=="C+")
+    {
+      reassign[i]<-"C"
+  }
+  else if (temp[i]=="D-"||temp[i]=="D+")
+    {
+      reassign[i]<-"D"
+  }
+  else if (temp[i]=="Pass")
+    {
+      reassign[i]<-"P"
+  }
+  else if (temp[i]=="Withdrawn")
+    {
+      reassign[i]<-"W"
+  }
+  else if (temp[i]=="Not Applicable")
+    {
+      reassign[i]<-"None"
+    }
+  
+}
+data["cs1_grade_other_letter"]<-as.factor(reassign)
+
+temp<-as.character(data$c_lines)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="0-100")
+    {
+      #reassign[i]<-"A"
+    }
+  else if(temp[i]=="101-500")
+    {
+      #reassign[i]<-"B"
+  }
+  else if(temp[i]=="501-1000")
+    {
+      #reassign[i]<-"C"
+  }
+  else if(temp[i]=="1001-5000")
+    {
+      #reassign[i]<-"D"
+  }
+  else if(temp[i]=="5000+")
+    {
+      #reassign[i]<-"E"
+    }
+  
+}
+data$c_lines<-reassign
+
+temp<-as.character(data$prompt_lines)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="0-100")
+    {
+      #reassign[i]<-"A"
+    }
+  else if(temp[i]=="101-500")
+    {
+      #reassign[i]<-"B"
+  }
+  else if(temp[i]=="501-1000")
+    {
+      #reassign[i]<-"C"
+  }
+  else if(temp[i]=="1001-5000")
+    {
+      #reassign[i]<-"D"
+  }
+  else if(temp[i]=="5000+")
+    {
+      #reassign[i]<-"E"
+    }
+  
+}
+data$prompt_lines<-reassign
+
+temp<-as.character(data$hrs_test)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="0-1")
+    {
+      reassign[i]<-"A"
+    }
+  else if(temp[i]=="2-3")
+    {
+      reassign[i]<-"B"
+  }
+  else if(temp[i]=="4-5")
+    {
+      reassign[i]<-"C"
+  }
+  else if(temp[i]=="6-7")
+    {
+      reassign[i]<-"D"
+  }
+  else if(temp[i]=="8+")
+    {
+      reassign[i]<-"E"
+    }
+  
+}
+data$hrs_test<-reassign
+
+temp<-as.character(data$hrs_hw)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="0-3")
+    {
+      reassign[i]<-"A"
+    }
+  else if(temp[i]=="10-12")
+    {
+      reassign[i]<-"D"
+  }
+  else if(temp[i]=="13-15")
+    {
+      reassign[i]<-"E"
+  }
+  else if(temp[i]=="16-18")
+    {
+      reassign[i]<-"F"
+  }
+  else if(temp[i]=="19+")
+    {
+      reassign[i]<-"G"
+  }
+  else if(temp[i]=="4-6")
+    {
+      reassign[i]<-"B"
+  }
+  else if(temp[i]=="7-9")
+    {
+      reassign[i]<-"C"
+    }
+  
+}
+data$hrs_hw<-reassign
+
+
+#table(reassign)
+ 
+  
+```
+
+
+
+
+# 3.0 Data Exploration
+In this section we will briefly explore the distributions of the independent variables and subset the data as necessary for model construction.
+
+
+## 3.1 Distribution  
+
+As visible in the plot below, it appears that the survey mostly had responses from individuals that are currently at RPI, which is logical.
+```{r,include=FALSE}
+plot(data$class_year,main="Distribution of Class Year")
+pie<-prop.table(table(data$class_year))
+slices <- c(pie[1]+pie[2]+pie[3]+pie[4]+ pie[5]+ pie[6], pie[7], pie[8], pie[9], pie[10], pie[11]) 
+lbls <- c("=<2017", "2018", "2019", "2020", "2021", "2022")
+pct <- round(slices/sum(slices)*100)
+lbls <- paste(lbls, pct) 
+lbls <- paste(lbls,"%",sep="") 
+pie(slices,labels=lbls,col=rainbow(length(lbls)),main="Pie Chart of Class Year Distribution, n=653")
+```
+
+I expected there to be more people that took DS in the spring than anywhere else, however I didn't think the gap would be so small as visible below.
+```{r,include=FALSE}
+plot(data$semester,main="Distribution of the Semester DS was taken")
+```
+
+As visible below, the distribution of AP scores is mostly flat, with an aritificual peak at 0 which represents students that did not take the AP exam.
+
+```{r,include=FALSE}
+#hist(data$ap_grade,main="Histogram of AP Computer Science Grade",xlab = "Grade")
+ggplot(data, aes(x=ap_grade)) + geom_histogram()+ggtitle("Distribution of AP Computer Science Grade")
+```
+
+As you can see below, the distribution of the cumulative GPA is mostly flat, however it is multimodal with the highest frequency in the 3.0 to 4.0 range. It is possible that people entered an unrealistic GPA, thus more filtering is required. I removed the samples with a GPA below 2.0 as they are not in good academic standing. On the same note, 185 students are signifigantly below the good standing threshold (signifigantly below is defined to be < 1.5). These students are not performing well, or they have provided false GPA information. If false information is provided, it is probable that false information was recorded for their data structures grade. In either case, we will not consider them for the purposes of model creation. Henceforth, any generalization will refer to the subset of students that has a cumulative GPA that is greater than or equal to 2.
+
+```{r,include=FALSE}
+ggplot(data, aes(x=gpa)) + geom_histogram()+ggtitle("Distribution of Cumulative GPA")
+data_lt1.5<-data[data$gpa<1.5,]
+data_gt2<-data[data$gpa>=2,]
+cat("Number of students with a GPA below 1.5: ",nrow(data_lt1.5))
+cat("Number of students with a GPA above 2.0: ",nrow(data_gt2))
+```
+
+The plot below displays the number of students that have written code at the command line level in different bins. As visible below, a large proportion of students have little to no experience with the command line prior to starting the course. This is relevant as compiling and debugging and compiling in C++ is done at the command line level.
+```{r,include=FALSE}
+barplot(table(data_gt2$prompt_lines),main="Distribution of Command Line Quantities")
+```
+
+
+The plot below displays the number of students that have written code in C++ in different bins. Similarly, the a large proportion of students have little experience with C++. I hoped that this variable would have a strong correlation with the response variable, but it appears that is unlikely.
+```{r,include=FALSE}
+barplot(table(data_gt2$c_lines),main="Distribution of C++ Line Quantities")
+```
+
+As visible below, the majority of students attended lecture twice a week, which is the maximum. If this variable is a signifigant predictor, it could be extrapolated that there is a signifigant relationship between class attendence and the final grade. If it does not act as a signifigant predictor, it could be extrapolated that class attendence is not a signifigant variable in determining the final grade of a student in data structures.
+```{r,include=FALSE}
+pie<-prop.table(table(data_gt2$lectures_week))
+slices <- c(pie[1],pie[2],pie[3]) 
+lbls <- c("0 lectures per week", "1 lectures per week", "2 lectures per week")
+pct <- round(slices/sum(slices)*100)
+lbls <- paste(lbls, pct) 
+lbls <- paste(lbls,"%",sep="") 
+pie(slices,labels=lbls,col=rainbow(length(lbls)),main="Pie Chart of Lectures Attended Distribution, n=396")
+```
+
+Below is another representation of the same variable.
+```{r,include=FALSE}
+barplot(table(data_gt2$lectures_week),main="Distribution of The number of lectures attended by week")
+```
+
+
+
+## 3.2 Outlier Detection
+
+The series of boxplots below were created in attempt to visualzie the number of outliers with respect to the response variable. As you can see there are very few outliers, which are denoted as orange.
+```{r,include=FALSE}
+ggplot(data=data_gt2,aes(x=data_gt2$ds_grade_letter,y=data_gt2$gpa)) + geom_boxplot(varwidth=TRUE, fill="white",outlier.color="orange") + ggtitle("Boxplot of GPA & DS Grade")+labs(x="DS Grade",y="GPA") + coord_flip()
+```
+
+
+## 3.3 Change in Major Distribution
+As time progressed, it is possible that non Computer Science or ECSE matriculated students are taking the course. It is desirable for students to know if there is any trend in the number of students within their discipline that take the course. This section will investigate the possibility of a difference in the distrubution with respect to time. 
+
+### 3.3.1 Major Cleanup
+
+The code chunk below cleans the major entries. The dual majors that include CSCI will be denoted as CSCI, as their designation as a CSCI major explains their enrollment in the course. The sample size of dual majors is not large enough to draw any additional conclussions, so this loss of information is acceptable for our purposes.
+```{r}
+toPlot<-data_gt2
+reassign<-as.character(toPlot$major)
+temp<-as.character(toPlot$major)
+for (i in 1:length(temp)){
+    if(temp[i]=="BIOL/CSCI at the time, eventually swapped to just CSCI"||temp[i]=="COGS/CSCI"||temp[i]=="CS and GSAS"||temp[i]=="Physics and Computer Science"||temp[i]=="CSCI and MECL"||temp[i]=="CS / ITWS Dual"||temp[i]=="CS/CSE"||temp[i]=="CSCI/CSE"||temp[i]=="CSCI/GSAS"||temp[i]=="CSYS+CSCI"||temp[i]=="MECL, CSCI"||temp[i]=="CSYS+CSCI"||temp[i]=="ECSE/CSCI"||temp[i]=="CSE/CS"||temp[i]=="CSCI/PSYC"||temp[i]=="CSCI/ITWS"||temp[i]=="CSCI/PSYC"||temp[i]=="ECSE and CSCI"||temp[i]=="CSE CS"||temp[i]=="CSYS/CSCI"||temp[i]=="CSCI and STSS"||temp[i]=="CSCI COGS"||temp[i]=="CSCI/COGS"||temp[i]=="ECSE / CSCI"||temp[i]=="GSAS/CSCI"||temp[i]=="Gsas csci"||temp[i]=="CSCI/MATH"||temp[i]=="Itws & csci"||temp[i]=="CSCI/ECSE"||temp[i]=="MATH/CSCI"||temp[i]=="CSCS")
+    {
+      reassign[i]<-"CSCI"
+    }
+  else if(temp[i]=="PHYS/MATH Dual"||temp[i]=="Phys-Math")
+    {
+      reassign[i]<-"PHYS"
+  }
+  else if(temp[i]=="ECSE/CSYS")
+    {
+      reassign[i]<-"ECSE"
+  }
+  else if(temp[i]=="COGS/GSAS")
+    {
+      reassign[i]<-"COGS"
+  }
+  else if(temp[i]=="ChemE")
+    {
+      reassign[i]<-"CHME"
+    }
+}
+toPlot$major<-reassign
+```
+
+The chunk below combines the semester and year data structures was taken into a single variable for plotting.
+```{r}
+toPlot$semester<-as.factor(toPlot$semester)
+toPlot$ds_year<-as.factor(toPlot$ds_year)
+toPlot<-toPlot %>%group_by(semester,ds_year,major)%>%
+summarize(n=n_distinct(survey_id))
+reassign<-as.character(toPlot$semester)
+tempSem<-as.character(toPlot$semester)
+tempYr<-as.character(toPlot$ds_year)
+for (i in 1:length(tempSem)){
+  reassign[i]<-paste(tempYr[i],tempSem[i])
+}
+toPlot['SemYr']<-reassign
+```
+
+### 3.3.2 3D Plot
+
+
+The chunk below displays the number of semesters that have data for each major. For example, there are 21 terms that CSCI students took data structures. Unfortunately there is not enough data to do any deep analysis for most diciplines.
+```{r}
+table(toPlot$major)
+barplot(table(toPlot$major),main="Distribution of Major")
+```
+
+
+The chunk below crates an interactive 3D plot using plotly. The x axis is the term the course was taken, the y axis is the range of student majors, and the z axis is the number of students in the term and major. As you can see, the most represented major is CSCI which is logical. This plot serves as an excellent deliverable, as students can investigate the distribution for their own major. 
+
+NOTE: Engr represents undeclared Engineering students.
+
+```{r}
+toPlot$SemYr<-as.factor(toPlot$SemYr)
+toPlot <- toPlot[order(toPlot$SemYr),]
+colors = rainbow(length(unique(toPlot$major)))
+names(colors) = unique(toPlot$major)
+plot_ly(toPlot, x = ~semester, y = ~ds_year, z = ~n, color = ~major, colors = colors) %>%
+  add_markers() %>%
+  layout(title = 'Major Distribution with respect to Time', scene = list(xaxis = list(title = 'Semester DS was taken'),
+                     yaxis = list(title = 'Year DS was taken'),
+                     zaxis = list(title = 'Number of Students'))) 
+```
+
+In general there are not enough samples from older datasets to see a trend. Clearly less students take the course in the summer, but that is not a new insight. This plot creation could be expanded to other courses, and would be more effective with better data.
+
+
+# 4.0 Response Variable Manipulation
+
+In this section, the response variables are modified and created into the following two variables
+
+binary - A boolean that represents wether or not the student passed the course
+response - Factors that represent the grade neighborhoods with P omitted, No credit and W as Failing.
+
+
+## 4.1 Code
+
+Below are the two code segments that perform the transformations.
+```{r}
+# creating smaller bins, removed P as it could be a D to an A
+data_no_P<-data_gt2[data_gt2$ds_grade_letter!="P",]
+temp2<-as.character(data_no_P$ds_grade_letter)
+reassign2<-temp2
+for (i in 1:length(temp2)){
+    if (temp2[i]=="No Credit")
+    {
+      reassign2[i]<-"F"
+  }
+  else if (temp2[i]=="W")
+    {
+      reassign2[i]<-"F"
+  }
+  
+}
+table(reassign2)
+morphedData<-data_no_P
+
+morphedData["response"] <- reassign2
+dropnames1<-c("dropped","ds_multiple","employed","employed_field","workload","RCS","survey_id","ds_grade","ds_grade_letter")
+morphedData<-morphedData[,!(names(morphedData)%in% dropnames1)]
+morphedData$ap_bool<-as.factor(morphedData$ap_bool)
+morphedData$hrs_hw<-as.factor(morphedData$hrs_hw)
+morphedData$hrs_test<-as.factor(morphedData$hrs_test)
+morphedData$prompt_lines<-as.factor(morphedData$prompt_lines)
+morphedData$cs1_atRpi<-as.factor(morphedData$cs1_atRpi)
+morphedData$c_lines<-as.factor(morphedData$c_lines)
+morphedData<-morphedData[complete.cases(morphedData), ]
+morphedData$response<-as.factor(morphedData$response)
+```
+
+```{r}
+# creating binary
+Legend<-as.character(morphedData$response)
+temp2<-as.character(morphedData$response)
+for (i in 1:length(temp2)){
+    if(temp2[i]=="A")
+    {
+      Legend[i]<-"P"
+    }
+  else if (temp2[i]=="No Credit")
+    {
+      Legend[i]<-"F"
+  }
+  else if (temp2[i]=="B")
+    {
+      Legend[i]<-"P"
+  }
+  else if (temp2[i]=="C")
+    {
+      Legend[i]<-"P"
+  }
+  else if (temp2[i]=="D")
+    {
+      Legend[i]<-"P"
+  }
+  else if (temp2[i]=="W")
+    {
+      Legend[i]<-"F"
+  }
+  
+}
+
+
+
+
+temp<-as.character(data_gt2$ds_grade_letter)
+reassign<-temp
+for (i in 1:length(temp)){
+    if(temp[i]=="A")
+    {
+      reassign[i]<-"P"
+    }
+  else if (temp[i]=="No Credit")
+    {
+      reassign[i]<-"F"
+  }
+  else if (temp[i]=="B")
+    {
+      reassign[i]<-"P"
+  }
+  else if (temp[i]=="C")
+    {
+      reassign[i]<-"P"
+  }
+  else if (temp[i]=="D")
+    {
+      reassign[i]<-"P"
+  }
+  else if (temp[i]=="W")
+    {
+      reassign[i]<-"F"
+  }
+  
+}
+table(reassign)
+binaryData<-data_gt2
+
+binaryData["binary"] <- reassign
+dropnames1<-c("dropped","ds_multiple","employed","employed_field","workload","RCS","survey_id","ds_grade","ds_grade_letter")
+binaryData<-binaryData[,!(names(binaryData)%in% dropnames1)]
+binaryData$binary<-as.factor(binaryData$binary)
+binaryData$ap_bool<-as.factor(binaryData$ap_bool)
+binaryData$hrs_hw<-as.factor(binaryData$hrs_hw)
+binaryData$hrs_test<-as.factor(binaryData$hrs_test)
+binaryData$prompt_lines<-as.factor(binaryData$prompt_lines)
+binaryData$cs1_atRpi<-as.factor(binaryData$cs1_atRpi)
+binaryData$c_lines<-as.factor(binaryData$c_lines)
+binaryData<-binaryData[complete.cases(binaryData), ]
+
+```
+
+
+## 4.2 Response Variable Distribution
+
+As you can see below, the response variable is well distributed. Note the neighborhoods were created to condense the number of clusters. For example, the C neighborhood represents C+, C, and C- grades. Withdrawns are treated as Failures, Passes are omitted, and No credits are treated as Failures. Ideally, it would be better to have a higher proportion of Failures. 
+```{r}
+pie<-prop.table(table(morphedData$response))
+slices <- c(pie[1], pie[2], pie[3], pie[4], pie[5]) 
+lbls <- c("A Neighborhood", "B Neighborhood", "C Neighborhood", "D Neighborhood", "F Neighborhood")
+pct <- round(slices/sum(slices)*100)
+lbls <- paste(lbls, pct) 
+lbls <- paste(lbls,"%",sep="") #for gpa >=2
+pie(slices,labels=lbls,col=rainbow(length(lbls)),main="Pie Chart of DS Grade Neighborhoods, n=396")
+```
+As visible below, unfortunately the binary response variable is not evenly distributed, thus the sampling techniques will deviate from the norm
+```{r}
+pie<-prop.table(table(binaryData$binary))
+slices <- c(pie[1], pie[2]) 
+lbls <- c("Fail", "Pass")
+pct <- round(slices/sum(slices)*100)
+lbls <- paste(lbls, pct) 
+lbls <- paste(lbls,"%",sep="") #for gpa >=2
+pie(slices,labels=lbls,col=rainbow(length(lbls)),main="Pie Chart of binary response variable, n=396")
+```
+
+
+## 4.3 Correlation & PCA
+The section below investigates feature selection and the correlation of the response variables with the independent variables
+
+```{r,include=FALSE}
+#type cast the factors to numeric
+binaryDataKnn<-morphedData
+binaryDataKnn$class_year<-as.numeric(levels(binaryDataKnn$class_year))[binaryDataKnn$class_year]
+binaryDataKnn$semester<-as.numeric(binaryDataKnn$semester)
+binaryDataKnn$lecturer<-as.numeric(binaryDataKnn$lecturer)
+binaryDataKnn$ap_bool<-as.numeric(binaryDataKnn$ap_bool)
+binaryDataKnn$cs1_grade_rpi<-as.numeric(binaryDataKnn$cs1_grade_rpi)
+binaryDataKnn$major<-as.numeric(binaryDataKnn$major)
+binaryDataKnn$hrs_test<-as.numeric(binaryDataKnn$hrs_test)
+binaryDataKnn$hrs_hw<-as.numeric(binaryDataKnn$hrs_hw)
+binaryDataKnn$ds_year<-as.numeric(binaryDataKnn$ds_year)
+binaryDataKnn$cs1_atRpi<-as.numeric(binaryDataKnn$cs1_atRpi)
+binaryDataKnn$cs1_grade_other<-as.numeric(binaryDataKnn$cs1_grade_other)
+binaryDataKnn$c_lines<-as.numeric(binaryDataKnn$c_lines)
+binaryDataKnn$prompt_lines<-as.numeric(binaryDataKnn$prompt_lines)
+binaryDataKnn$cs1_grade_rpi_letter<-as.numeric(binaryDataKnn$cs1_grade_rpi_letter)
+binaryDataKnn$cs1_grade_other_letter<-as.numeric(binaryDataKnn$cs1_grade_other_letter)
+binaryDataKnn$response<-as.numeric(binaryDataKnn$response)
+sapply(binaryDataKnn, function(x) sum(is.na(x)))#confirming that there are no NA values in the dat
+sapply(binaryDataKnn, function(x) sum(is.nan(x)))
+sapply(binaryDataKnn, function(x) sum(is.infinite(x)))
+#binaryDataKnn<-scale(binaryDataKnn)
+```
+
+
+### 4.3.1 Correlation
+
+As you can see in the correlation plot below, there are no strong correlations between the response variable and the independent variables. Note the high correlation clusters around class year, and AP variables are logical.
+```{r}
+corM<-cor(binaryDataKnn,method=c("pearson","kendall","spearman"))
+corrplot(corM, type = "full", order = "hclust", tl.col = "black", tl.srt = 45)
+```
+
+
+### 4.3.2 PCA
+As you can see below, the first two principal components capture ~87% of the variance in the samples. The first principal component is based on major, which makes sense as it has the widest range out of all recorded variables.
+```{r}
+pca<-prcomp(binaryDataKnn)
+summary(pca)#PC1+2 is ~87%
+pca$rotation[,1:2]#pc1 based on major, pc2 based on cs1 grade variants.
+```
+
+The plot below projects the samples onto the subspace spanned by the first two principal components. The samples are colored based on the response variable. F denotes failures, and P denotes passing. As you can see there is no natural clustering despite the large proportion of variance explained. This plot suggests that clustering methods such as K-means and KNN will likely fail, thus they will not be tested if the other visualizations follow a similar patern.
+```{r}
+#PCA 
+p1<-ggplot(binaryDataKnn,aes(x=pca$x[,1],y=pca$x[,2],colour=Legend))+geom_point(size=2)
+p1+ ggtitle("PCA Denoted by Pass/Fail") +
+  xlab("PC1") + ylab("PC2")
+```
+As you can see below, there is no clustering when the binary constraint is relaxed to encapsulate the a wider range of grades.
+```{r}
+#PCA 
+Legend<-as.factor(morphedData$response)
+p2<-ggplot(binaryDataKnn,aes(x=pca$x[,1],y=pca$x[,2],colour=Legend))+geom_point(size=2)
+p2+ ggtitle("PCA Denoted by DS Final Grade Neighborhood") +
+  xlab("PC1") + ylab("PC2")
+```
+
+```{r,eval=FALSE,include=FALSE}
+#PCA  For the sake of completeness, I also plotted the response variable as the full range.
+Legend<-as.factor(data_gt2$ds_grade)
+p2<-ggplot(binaryDataKnn,aes(x=pca$x[,1],y=pca$x[,2],colour=Legend))+geom_point(size=2)
+p2+ ggtitle("PCA Denoted by DS Final Grade") +
+  xlab("PC1") + ylab("PC2")
+```
+
+```{r,include=FALSE}
+# do pca again with the morphedData, first you need to make all the factors numeric tho.
+```
+
+
+# 5.0 Training, Testing, and Model Creation
+In this section, the samples will be logically separated into training and testing sets. The training set will be used for model constuction, and the testing set will be used to test the performance of the model. There is no overlap between the training and testing sets. 
+
+## 5.1 Training and Testing Sets
+The Code section below separates the samples into training and testing sets. Normally, I would cross validate the training and testing sets, however the distribution of the binary representation of the response variable is not uniform. I comprised the training set of all the failures (n=50), and 60 samples that passed, determined by stratified sampling. The testing set contains the remainder of the samples.
+
+```{r}
+#for binary classifier
+set.seed(162)
+ss<-as.integer(.80*nrow(binaryData))
+value<-sample(1:nrow(binaryData),ss)
+traindata<-binaryData[binaryData$binary=="F",]
+tempdata<-binaryData[binaryData$binary!="F",]
+ss<-60
+value<-sample(1:nrow(tempdata),ss)
+tempdata<-binaryData[value,]
+traindata<-rbind(traindata,tempdata)
+testdata<-binaryData[-value,]
+#traindata<-binaryData[value,]
+#testdata<-binaryData[-value,]
+traindata$ap_bool<-as.factor(traindata$ap_bool)
+traindata$hrs_hw<-as.factor(traindata$hrs_hw)
+traindata$hrs_test<-as.factor(traindata$hrs_test)
+traindata$prompt_lines<-as.factor(traindata$prompt_lines)
+traindata$cs1_atRpi<-as.factor(traindata$cs1_atRpi)
+traindata$c_lines<-as.factor(traindata$c_lines)
+#train mods
+testdata$ap_bool<-as.factor(testdata$ap_bool)
+testdata$hrs_hw<-as.factor(testdata$hrs_hw)
+testdata$hrs_test<-as.factor(testdata$hrs_test)
+testdata$prompt_lines<-as.factor(testdata$prompt_lines)
+testdata$cs1_atRpi<-as.factor(testdata$cs1_atRpi)
+testdata$c_lines<-as.factor(testdata$c_lines)
+```
+The section below separates the data into training and testing sets via stratified sampling in an 80/20 split for the response variable.
+```{r}
+
+set.seed(162)
+ss<-as.integer(.80*nrow(morphedData))
+value<-sample(1:nrow(morphedData),ss)
+traindataM<-morphedData[value,]
+testdataM<-morphedData[-value,]
+dropnames<-c("dropped","ds_multiple","employed","employed_field","workload","RCS","survey_id","ds_grade")#,"lectures_week"
+traindataM<-traindataM[,!(names(traindataM)%in% dropnames)]
+traindataM$ap_bool<-as.factor(traindataM$ap_bool)
+traindataM$hrs_hw<-as.factor(traindataM$hrs_hw)
+traindataM$hrs_test<-as.factor(traindataM$hrs_test)
+traindataM$prompt_lines<-as.factor(traindataM$prompt_lines)
+traindataM$cs1_atRpi<-as.factor(traindataM$cs1_atRpi)
+traindataM$c_lines<-as.factor(traindataM$c_lines)
+testdataM<-testdataM[,!(names(testdataM)%in% dropnames)]
+```
+
+## 5.2 Model Construction - Random Forest
+In this section, random forest is used to predict the response variables
+
+### 5.2.1 Random Forest - Binary
+The line below creates a random forest model in attempt to predict wether or not a student will pass the course.
+```{r}
+#random forest for binary - OOB ~45%
+randFor<-randomForest(binary~.,data=traindata)
+```
+
+The code below displays the results of the model. As you can see in the Random Forest Error plot, the black line represents the average of the  error rates. An approximate 45% error rate is acceptable in training. As you can see in the class error column, the model did not overfit. Unfortunately the testing set is not ideal as it does not contain any true failures. In testing, 80% of the samples classified as passing were correct. 
+```{r}
+print("Training Results")
+plot(randFor,main="Random Forest Error")
+print(randFor)
+forBinaryTable<-table(predict(randFor,testdata),as.factor(testdata$binary))
+forBinaryTable
+print("Testing Results")
+cat("Proportion of Accuracy rates in Testing: ",diag(prop.table(forBinaryTable,1)))
+cat("\nOverall Accuracy in Testing: ",(sum(diag(prop.table(forBinaryTable))))*100,"%")
+```
+The variable importance plot below displays the importance of the various features in decreasing order. The most important feature is the students grade in CS1 at RPI. This makes sense as the courses are similar.
+```{r}
+varImpPlot(randFor,sort=T,n.var=9,main="Variable Importance - Forest")
+```
+
+
+### 5.2.2 Random Forest - Neighborhood
+
+As you can see below, the random forest model did not perform well. An estimated 70% error rate is worse than a coin toss. It is unlikely that we can predict the final grade neighborhoods as the indepdendent variables are not closely correlated with the response variable.
+```{r}
+randFor<-randomForest(response~.,data=traindataM)
+plot(randFor,main="Random Forest error")
+print(randFor)
+varImpPlot(randFor,sort=T,n.var=9,main="Variable Importance - Forest")
+```
+
+
+## 5.3 Model Construction - Neural Network
+The commented code below creates a neural net. For the sake of brevity in kniting this notebook, the R Data object was saved and merely reloaded.
+```{r}
+set.seed(6432)
+#trainc<-trainControl(method="repeatedcv",number=10,repeats=3)
+#NN<-train(response~.,data=traindataM,method="nnet",tuneLength=10,trainControl=trainc)
+#save(NN,file="C:/Users/JHicks/Desktop/DataScience/NN.Rda")
+NN<-get(load(file="C:/Users/JHicks/Desktop/DataScience/NN.Rda"))
+```
+
+
+
+As you can see in the confusion matrix below, in testing the neural network preformspoorly at classifying the specific grades neighborhoods. Thus we can confirm with the sucess of the random forest and nerual network that the independent variables are a signifigant predictor for the reponse variable for the A neighborhood at minimum. There are concerns of overfitting due to the sample size.
+```{r}
+testpNN<-predict(NN,newdata=traindataM)#testing
+NNtable<-table(testpNN,traindataM$response)
+NNtable
+diag(prop.table(NNtable,1))# % correct in each class IN test
+cat("Percentage Correct in Testing: ",sum(diag(prop.table(NNtable))))#overalll % correct IN Test
+```
+
+
+
+# 6.0 Conclusion
+
+The distribution of the response variables could have been more uniform which could result in better models. I was hopeful that there would be natural clustering, thus we could attempt to use KNN/K-means.
+
+The random forest binay classifier performs at an acceptable level, an accuracy rate of ~44% in training and ~80% in testing is adequate to assist students in their college decisions. Obviously the accuracy is high due to the high number of passing samples. We can further validate these models with more data that can be collected in later semesters to verify the claims made and account for any potential overfitting.
+
+There is a signifigant relationship between the independent variables and the response variables as indicitated by the moderately successful models.
